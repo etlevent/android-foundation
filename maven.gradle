@@ -1,0 +1,46 @@
+def _artifactId = getArtifactId(project)
+
+apply plugin: 'maven-publish'
+apply plugin: 'signing'
+
+afterEvaluate {
+    publishing {
+        publications {
+            release(MavenPublication) {
+                from components.release
+
+                if (project.hasProperty('snapshot') && !project.version.endsWith('SNAPSHOT')) {
+                    project.version = "${project.version}-SNAPSHOT"
+                }
+                groupId = project.group
+                artifactId = _artifactId
+                version = project.version
+            }
+        }
+
+        repositories {
+//            maven {
+//                def releasesRepoUrl = config.maven.nexusReleasesUrl
+//                def snapshotsRepoUrl = config.maven.nexusSnapshotsUrl
+//                url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+//                credentials {
+//                    username = project.hasProperty('username') ? project.username : config.maven.userName
+//                    password = project.hasProperty('password') ? project.password : config.maven.password
+//                }
+//            }
+            maven {
+                name = 'local'
+                if (config.maven.localRepos == null) {
+                    throw new IllegalArgumentException('must config maven.local=xxx in local.properties when upload to Local Repos.')
+                }
+                def releasesRepoUrl = "${config.maven.localRepos}/releases"
+                def snapshotsRepoUrl = "${config.maven.localRepos}/snapshots"
+                url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+//                url = config.maven.localRepos
+            }
+        }
+    }
+//    signing {
+//        sign publishing.publications.release
+//    }
+}
