@@ -7,17 +7,13 @@ fun CharSequence.padLeft(numberOfChars: Number): String {
 
 fun CharSequence.padLeft(numberOfChars: Number, padding: CharSequence): String {
     val numChars = numberOfChars.toInt()
-    return if (numChars <= length) toString() else getPadding(
-            padding.toString(),
-            numChars - length
-    ) + this
+    return if (numChars <= length) toString() else getPadding(padding, numChars - length) + this
 }
 
 private fun getPadding(padding: CharSequence, length: Int): String {
-    return if (padding.length < length) padding.multiply(length / padding.length + 1).substring(
-            0,
-            length
-    ) else "" + padding.subSequence(0, length)
+    return if (padding.length < length) padding.multiply(length / padding.length + 1)
+        .substring(0, length)
+    else padding.subSequence(0, length).toString()
 }
 
 fun CharSequence.multiply(factor: Number): String {
