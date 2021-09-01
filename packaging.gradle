@@ -1,0 +1,136 @@
+apply plugin: 'maven-publish'
+
+import java.util.jar.JarFile
+
+def isAndroid = isAndroidLibrary(project)
+def _artifactId = getArtifactId(project)
+
+task sourcesJar(type: Jar) {
+    archivesBaseName = _artifactId
+    if (!isAndroid) {
+        from sourceSets.main.java.srcDirs
+    } else {
+        from android.sourceSets.main.java.srcDirs
+    }
+    classifier = 'sources'
+}
+if (isAndroid) {
+    android.libraryVariants.all { variant ->
+        if (variant.name == 'release') { //我们只需 release 的 javadoc
+            task("generate${variant.name.capitalize()}Javadoc", type: Javadoc) {
+                doFirst {
+                    classpath = files(variant.javaCompile.classpath.files)
+                }
+                source = variant.javaCompile.source
+                if (!javadocSource().isEmpty())
+                    source javadocSource()
+                exclude '**/BuildConfig.java'
+                exclude '**/R.java'
+            }
+            task("javadoc${variant.name.capitalize()}Jar", type: Jar, dependsOn: "generate${variant.name.capitalize()}Javadoc") {
+                classifier = 'javadoc'
+                from tasks.getByName("generate${variant.name.capitalize()}Javadoc").destinationDir
+            }
+            artifacts {
+                archives tasks.getByName("javadoc${variant.name.capitalize()}Jar")
+                archives sourcesJar
+            }
+        }
+    }
+} else {
+    task javadocJar(type: Jar, dependsOn: javadoc) {
+        from javadoc.destinationDir
+        classifier = 'javadoc'
+    }
+
+    artifacts {
+        archives javadocJar
+        archives sourcesJar
+    }
+}
+
+tasks.withType(Javadoc) {
+    options {
+        encoding 'UTF-8'
+        charSet 'UTF-8'
+        links "http://docs.oracle.com/javase/7/docs/api"
+        if (isAndroid) {
+            linksOffline "https://developer.android.com/reference", "${android.sdkDirectory}/docs/reference"
+            bootClasspath project.file(android.getBootClasspath().join(File.pathSeparator))
+        }
+    }
+    options.addStringOption('Xdoclint:none', '-quiet')
+    options.addStringOption('-protected')
+    options.addStringOption('-splitindex')
+}
+
+def javadocSource() {
+    if (project.hasProperty('javadocSource')) {
+        println "javadocSource=${project.javadocSource}"
+        return project.javadocSource
+    }
+    return Collections.emptyList()
+}
+
+afterEvaluate {
+    //merge assets from jar
+    if (plugins.hasPlugin('com.android.library') && project.hasProperty('copyJarAssets')) {
+        android.libraryVariants.all { variant ->
+            String suffix = variant.name.capitalize()
+            def copyAssets = tasks.create(name: "copy${suffix}AssetsInJar") {
+                doLast {
+                    println "Run copy${suffix}AssetsInJar"
+                    def assetsDir = "${project.buildDir}${File.separator}intermediates${File.separator}generate_assets_in_jar${File.separator}${variant.variantData.name}${File.separator}$name"
+                    project.fileTree(include: ['*.jar'], dir: 'libs').files.each {
+                        def jarFile = new JarFile(it)
+                        jarFile.entries().each { jarEntry ->
+                            if (jarEntry.name.startsWith('assets')) {
+                                File file = new File(assetsDir, jarEntry.name.replaceAll('assets', ''))
+                                if (!file.parentFile.exists()) {
+                                    file.parentFile.mkdirs()
+                                }
+                                file.withOutputStream { out ->
+                                    jarFile.getInputStream(jarEntry).eachByte(1024) { buffer, count ->
+                                        out.write(buffer, 0, count)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    android.sourceSets.main.assets.srcDirs += file(assetsDir)
+                }
+            }
+            def generateAssetsTask = tasks.findByName("generate${suffix}Assets")
+            generateAssetsTask.dependsOn copyAssets
+        }
+    }
+}
+//def excludeJavadoc() {
+//    if (project.hasProperty('javadocExclude')) {
+//        println "javadocExclude=${project.javadocExclude}"
+//        return project.javadocExclude
+//    }
+//    return Collections.emptyList()
+//}
+//
+//def getPackageName(variant) {
+//    def classpath = variant.applicationId
+//    if (variant.buildType.applicationIdSuffix) {
+//        classpath -= "${variant.buildType.applicationIdSuffix}"
+//    }
+//    return classpath
+//}
+//def packageName = getPackageName(variant)
+//println "packageName=${getPackageName(variant)}"
+//
+//def excludes = []
+//def projectPath = projectDir.absolutePath.replace(File.separator, '')
+//def packageNameNonSep = packageName.replace('.', '')
+//source.each { File file ->
+//    def absolutePath = file.absolutePath.replace(File.separator, '')
+//    def innerPath = absolutePath.replaceAll(projectPath, "")
+//    if (innerPath.contains('R.java') && !innerPath.contains(packageNameNonSep)) {
+//        println "${file.absolutePath}"
+//        excludes += file.absolutePath
+//    }
+//}
