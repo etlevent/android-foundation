@@ -39,6 +39,15 @@ fun bytes2int(bytes: ByteArray, isBigEndian: Boolean, signed: Boolean): Int {
     }
 }
 
+fun bytes2float(bytes: ByteArray, isBigEndian: Boolean, signed: Boolean): Float {
+    val i = bytes2int(bytes, isBigEndian, signed)
+    return Float.fromBits(i)
+}
+
 fun ByteArray.toInt(isBigEndian: Boolean = true) = bytes2int(this, isBigEndian, true)
 
 fun ByteArray.toUInt(isBigEndian: Boolean = true) = bytes2int(this, isBigEndian, false)
+
+fun ByteArray.toFloat(isBigEndian: Boolean = true) = bytes2float(this, isBigEndian, true)
+
+fun ByteArray.toUFloat(isBigEndian: Boolean = true) = bytes2float(this, isBigEndian, false)
