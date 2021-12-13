@@ -89,6 +89,38 @@ object LiveDataTransformers {
         }
         return result
     }
+
+    fun <X, Y, Z> switchCombineLatest(
+        first: LiveData<X>,
+        second: LiveData<Y>,
+        combiner: BiFunction<X, Y, LiveData<Z>>
+    ): LiveData<Z> {
+        val result = MediatorLiveData<Z>()
+        var firstValue: X? = null
+        var secondValue: Y? = null
+        var source: LiveData<Z>? = null
+
+        fun sendCombinedValue() {
+            if (firstValue != null && secondValue != null) {
+                val newLiveData: LiveData<Z> = combiner(firstValue!!, secondValue!!)
+                if (source == newLiveData) return
+                if (source != null) result.removeSource(source!!)
+                source = newLiveData
+                result.addSource(source!!) { z ->
+                    result.value = z
+                }
+            }
+        }
+        result.addSource(first) { value ->
+            firstValue = value
+            sendCombinedValue()
+        }
+        result.addSource(second) { value ->
+            secondValue = value
+            sendCombinedValue()
+        }
+        return result
+    }
 }
 
 fun <T> LiveData<T>.doOnNext(consumer: Consumer<T>): LiveData<T> =
@@ -109,6 +141,13 @@ inline fun <X, Y, Z> LiveData<X>.combineLatest(
     other: LiveData<Y>,
     crossinline combiner: BiFunction<X, Y, Z>
 ): LiveData<Z> = LiveDataTransformers.combineLatest(this, other) { x, y -> combiner(x, y) }
+
+
+inline fun <X, Y, Z> LiveData<X>.switchCombineLatest(
+    other: LiveData<Y>,
+    crossinline combiner: BiFunction<X, Y, LiveData<Z>>
+): LiveData<Z> = LiveDataTransformers.switchCombineLatest(this, other) { x, y -> combiner(x, y) }
+
 
 fun <T : Any> T.liveData(): LiveData<T> = MutableLiveData(this)
 
